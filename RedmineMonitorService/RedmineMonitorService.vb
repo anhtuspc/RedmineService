@@ -10,6 +10,7 @@ Public Class RedmineMonitorService
 
     Private WithEvents monitorTimer As Timer
     Private redmineClient As RedmineClient
+    Private xmlFolderMonitor As XmlFolderMonitor
 
     Public Sub New()
         MyBase.New()
@@ -44,6 +45,18 @@ Public Class RedmineMonitorService
 
             Logger.WriteLog("Service started successfully. Timer interval: " & intervalMinutes & " minute(s)")
 
+            ' Initialize XML folder monitor
+            Dim monitorFolder = ConfigurationManager.AppSettings("MonitorFolder")
+            Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder")
+            
+            If Not String.IsNullOrEmpty(monitorFolder) AndAlso Not String.IsNullOrEmpty(backupFolder) Then
+                xmlFolderMonitor = New XmlFolderMonitor(redmineClient, monitorFolder, backupFolder)
+                xmlFolderMonitor.StartMonitoring()
+                Logger.WriteLog("XML folder monitoring started")
+            Else
+                Logger.WriteLog("XML folder monitoring disabled (MonitorFolder or BackupFolder not configured)")
+            End If
+
             ' Run immediately on start
             MonitorTickets()
 
@@ -64,6 +77,11 @@ Public Class RedmineMonitorService
                 monitorTimer.Stop()
                 monitorTimer.Dispose()
                 monitorTimer = Nothing
+            End If
+
+            If xmlFolderMonitor IsNot Nothing Then
+                xmlFolderMonitor.StopMonitoring()
+                xmlFolderMonitor = Nothing
             End If
 
             If redmineClient IsNot Nothing Then

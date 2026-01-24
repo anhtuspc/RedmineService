@@ -15,6 +15,7 @@ Public Class RedmineClient
     Private ReadOnly username As String
     Private ReadOnly password As String
     Private isLoggedIn As Boolean = False
+    Private csrfToken As String = ""
 
     Public Sub New()
         ' Read configuration
@@ -75,6 +76,8 @@ Public Class RedmineClient
             ' Check if login was successful (look for logged-in indicators)
             If Not responseHtml.Contains("login") OrElse responseHtml.Contains("my/page") OrElse responseHtml.Contains("logged-user") Then
                 isLoggedIn = True
+                ' Store CSRF token for future API calls
+                Me.csrfToken = csrfToken
                 Logger.WriteLog("Login successful")
                 Return True
             Else
@@ -282,9 +285,32 @@ Public Class RedmineClient
     ''' <summary>
     ''' Gets base URL from configured URL
     ''' </summary>
-    Private Function GetBaseUrl() As String
+    Public Function GetBaseUrl() As String
         Dim uri As New Uri(baseUrl)
         Return uri.Scheme & "://" & uri.Host
+    End Function
+
+    ''' <summary>
+    ''' Ensures user is logged in, logs in if necessary
+    ''' </summary>
+    Public Async Function EnsureLoggedInAsync() As Task
+        If Not isLoggedIn Then
+            Await LoginAsync()
+        End If
+    End Function
+
+    ''' <summary>
+    ''' Gets the HTTP client for API calls
+    ''' </summary>
+    Public Function GetHttpClient() As HttpClient
+        Return httpClient
+    End Function
+
+    ''' <summary>
+    ''' Gets the current CSRF token
+    ''' </summary>
+    Public Function GetCsrfToken() As String
+        Return csrfToken
     End Function
 
     Public Sub Dispose()
@@ -293,3 +319,4 @@ Public Class RedmineClient
         End If
     End Sub
 End Class
+
