@@ -1,0 +1,37 @@
+# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.opensdf
+*.sdf
+*.cache
+*.log
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# NuGet
+packages/
+!packages/repositories.config
+!packages.config
+
+# Test results
+TestResults/
+*.trx
+
+# Windows Service specific
+*.InstallLog
+InstallUtil.InstallLog
