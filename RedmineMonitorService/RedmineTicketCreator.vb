@@ -94,6 +94,59 @@ Public Class RedmineTicketCreator
                 customFields.Add(New JObject(New JProperty("id", 115), New JProperty("value", ticketData.Qty)))
             End If
 
+            ' cf_117: Registration Date
+            If Not String.IsNullOrEmpty(ticketData.RegistDate) Then
+                customFields.Add(New JObject(New JProperty("id", 117), New JProperty("value", ticketData.RegistDate)))
+            End If
+
+            ' cf_136: Registered Person
+            If Not String.IsNullOrEmpty(ticketData.RegistPerson) Then
+                customFields.Add(New JObject(New JProperty("id", 136), New JProperty("value", ticketData.RegistPerson)))
+            End If
+
+            ' cf_116: Change the Subject
+            If Not String.IsNullOrEmpty(ticketData.ChangtheSubject) Then
+                customFields.Add(New JObject(New JProperty("id", 116), New JProperty("value", ticketData.ChangtheSubject)))
+            End If
+
+            ' cf_131: Detail
+            If Not String.IsNullOrEmpty(ticketData.Detail) Then
+                customFields.Add(New JObject(New JProperty("id", 131), New JProperty("value", ticketData.Detail)))
+            End If
+
+            ' cf_130: Item Type
+            If Not String.IsNullOrEmpty(ticketData.ItemType) Then
+                customFields.Add(New JObject(New JProperty("id", 130), New JProperty("value", ticketData.ItemType)))
+            End If
+
+            ' cf_124: Update Folder (always "Dummy")
+            customFields.Add(New JObject(New JProperty("id", 124), New JProperty("value", "Dummy")))
+
+            ' cf_134: Test Server & cf_135: Production Server
+            ' Conditional based on Subject prefix
+            Dim testServerId As String
+            Dim productionServerId As String
+
+            If Not String.IsNullOrEmpty(ticketData.Subject) Then
+                If ticketData.Subject.StartsWith("SH2") Then
+                    testServerId = "CL272"
+                    productionServerId = "CL322"
+                ElseIf ticketData.Subject.StartsWith("JP") Then
+                    testServerId = "CL266"
+                    productionServerId = "CL325"
+                Else ' NT or other
+                    testServerId = "CL271"
+                    productionServerId = "CL323"
+                End If
+            Else
+                ' Default to NT
+                testServerId = "CL271"
+                productionServerId = "CL323"
+            End If
+
+            customFields.Add(New JObject(New JProperty("id", 134), New JProperty("value", testServerId)))
+            customFields.Add(New JObject(New JProperty("id", 135), New JProperty("value", productionServerId)))
+
             issue.Add("custom_fields", customFields)
             issueJson.Add("issue", issue)
 
@@ -124,6 +177,10 @@ Public Class RedmineTicketCreator
                 Dim responseJson = JObject.Parse(responseText)
                 Dim ticketId = responseJson("issue")("id").ToString()
                 Logger.WriteLog("Successfully created ticket #" & ticketId)
+                
+                ' Update ticket with Teams URL and Update Folder
+                Await UpdateTicketAfterCreation(ticketId, ticketData)
+                
                 Return ticketId
             Else
                 Logger.WriteLog("Failed to create ticket. Status: " & response.StatusCode & ", Response: " & responseText)
@@ -134,6 +191,258 @@ Public Class RedmineTicketCreator
             Logger.WriteLog("Error creating ticket: " & ex.Message)
             Return Nothing
         End Try
+    End Function
+
+    ''' <summary>
+    ''' Updates ticket after creation with Teams URL (notes) and Update Folder (cf_124)
+    ''' </summary>
+    Private Async Function UpdateTicketAfterCreation(ticketId As String, ticketData As TicketXmlData) As Task(Of Boolean)
+        Try
+            Logger.WriteLog("Updating ticket #" & ticketId & " with Teams URL and Update Folder")
+
+            ' Build JSON payload for update
+            Dim issueJson As New JObject()
+            Dim issue As New JObject()
+
+            ' Add Teams URL to notes (comment)
+            If Not String.IsNullOrEmpty(ticketData.TeamsUrl) Then
+                issue.Add("notes", ticketData.TeamsUrl)
+                Logger.WriteLog("Adding Teams URL to notes")
+            End If
+
+            ' Build Update Folder path
+            Dim folderPath = ConfigurationManager.AppSettings("FolderPath")
+            If String.IsNullOrEmpty(folderPath) Then
+                folderPath = "\\172.27.0.223\情報システム\マスタ更新履歴\"
+            End If
+
+            Dim updateFolder = MakeDataFolder(folderPath, ticketId, ticketData)
+            
+            ' Add Update Folder to custom fields
+            Dim customFields As New JArray()
+            customFields.Add(New JObject(New JProperty("id", 124), New JProperty("value", updateFolder)))
+            issue.Add("custom_fields", customFields)
+            
+            Logger.WriteLog("Setting Update Folder: " & updateFolder)
+
+            issueJson.Add("issue", issue)
+
+            ' Send PUT request
+            Dim baseUrl = redmineClient.GetBaseUrl()
+            Dim apiUrl = baseUrl & "/issues/" & ticketId & ".json"
+
+            Logger.WriteLog("Update API URL: " & apiUrl)
+            Logger.WriteLog("Update JSON Payload: " & issueJson.ToString())
+
+            Dim content As New StringContent(issueJson.ToString(), Encoding.UTF8, "application/json")
+            
+            ' API key header already set in CreateTicketAsync
+            Dim response = Await httpClient.PutAsync(apiUrl, content)
+
+            Dim responseText = Await response.Content.ReadAsStringAsync()
+
+            If response.IsSuccessStatusCode Then
+                Logger.WriteLog("Successfully updated ticket #" & ticketId & " with Teams URL and Update Folder")
+                Return True
+            Else
+                Logger.WriteLog("Failed to update ticket after creation. Status: " & response.StatusCode & ", Response: " & responseText)
+                Return False
+            End If
+
+        Catch ex As Exception
+            Logger.WriteLog("Error updating ticket after creation: " & ex.Message)
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Makes data folder path based on current date and ticket info
+    ''' Format: FolderPath\yyyy\yyyyMM\yyyyMMdd\NoXXXXX[Subject] [Qty]Qty
+    ''' </summary>
+    Private Function MakeDataFolder(folderPath As String, ticketId As String, ticketData As TicketXmlData) As String
+        Dim result As String = ""
+        Dim now As DateTime = DateTime.Now
+        
+        ' Extract subject without prefix (remove first 2 characters like "NT ", "SH ", "JP ")
+        Dim subjectWithoutPrefix As String = ""
+        If Not String.IsNullOrEmpty(ticketData.Subject) AndAlso ticketData.Subject.Length > 2 Then
+            subjectWithoutPrefix = ticketData.Subject.Substring(2)
+            ' Limit to 100 characters
+            If subjectWithoutPrefix.Length > 100 Then
+                subjectWithoutPrefix = subjectWithoutPrefix.Substring(0, 100)
+            End If
+        End If
+        
+        result = folderPath & now.ToString("yyyy") & "\" & now.ToString("yyyyMM") & "\" & now.ToString("yyyyMMdd") & "\" &
+                 "No" & ticketId & subjectWithoutPrefix & " " & ticketData.Qty & "Qty"
+        
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Updates an existing Redmine ticket (status and assignee)
+    ''' </summary>
+    Public Async Function UpdateTicketAsync(ticketData As TicketXmlData) As Task(Of Boolean)
+        Try
+            ' Bypass SSL certificate validation
+            System.Net.ServicePointManager.ServerCertificateValidationCallback = Function(sender, certificate, chain, sslPolicyErrors) True
+            System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12
+            
+            Logger.WriteLog("Updating Redmine ticket #" & ticketData.TicketNo)
+
+            ' Ensure we're logged in
+            Await redmineClient.EnsureLoggedInAsync()
+
+            ' First, GET the existing ticket to preserve custom fields
+            Dim baseUrl = redmineClient.GetBaseUrl()
+            Dim getUrl = baseUrl & "/issues/" & ticketData.TicketNo & ".json"
+            
+            ' Add API key header for GET request
+            Dim apiKey = ConfigurationManager.AppSettings("RedmineApiKey")
+            If Not String.IsNullOrEmpty(apiKey) Then
+                httpClient.DefaultRequestHeaders.Remove("X-Redmine-API-Key")
+                httpClient.DefaultRequestHeaders.Add("X-Redmine-API-Key", apiKey)
+            End If
+            
+            Logger.WriteLog("Fetching existing ticket data from: " & getUrl)
+            Dim getResponse = Await httpClient.GetAsync(getUrl)
+            
+            If Not getResponse.IsSuccessStatusCode Then
+                Logger.WriteLog("Failed to fetch existing ticket. Status: " & getResponse.StatusCode)
+                Return False
+            End If
+            
+            Dim existingTicketJson = Await getResponse.Content.ReadAsStringAsync()
+            Dim existingTicket = JObject.Parse(existingTicketJson)
+            
+            ' Build JSON payload for update
+            Dim issueJson As New JObject()
+            Dim issue As New JObject()
+
+            ' Map Status to status_id
+            Dim statusId = GetStatusId(ticketData.Status)
+            If statusId > 0 Then
+                issue.Add("status_id", statusId)
+                Logger.WriteLog("Setting status to: " & ticketData.Status & " (ID: " & statusId & ")")
+            End If
+
+            ' Map Assign to assigned_to_id
+            Dim assignedToId = GetAssignedToId(ticketData.Assign)
+            If assignedToId > 0 Then
+                issue.Add("assigned_to_id", assignedToId)
+                Logger.WriteLog("Setting assignee to: " & ticketData.Assign & " (ID: " & assignedToId & ")")
+            End If
+
+            ' Map Priority to priority_id
+            If Not String.IsNullOrEmpty(ticketData.Priority) Then
+                Dim priorityId = GetPriorityId(ticketData.Priority)
+                If priorityId > 0 Then
+                    issue.Add("priority_id", priorityId)
+                    Logger.WriteLog("Setting priority to: " & ticketData.Priority & " (ID: " & priorityId & ")")
+                End If
+            End If
+
+            ' Note: Do not send custom_fields in update request to avoid validation errors
+            ' Redmine API validates all required custom fields even if not included in request
+            ' Web UI doesn't have this issue
+            '
+            ' Preserve existing custom fields
+            'If existingTicket("issue")("custom_fields") IsNot Nothing Then
+            '    Dim existingCustomFields = DirectCast(existingTicket("issue")("custom_fields"), JArray)
+            '    Dim customFieldsToSend As New JArray()
+            '    
+            '    For Each field As JObject In existingCustomFields
+            '        Dim fieldId = field("id").ToString()
+            '        Dim fieldValue = If(field("value") IsNot Nothing, field("value").ToString(), "")
+            '        
+            '        ' Only preserve fields with non-empty values to avoid validation errors
+            '        If Not String.IsNullOrEmpty(fieldValue) Then
+            '            customFieldsToSend.Add(New JObject(
+            '                New JProperty("id", Integer.Parse(fieldId)),
+            '                New JProperty("value", fieldValue)
+            '            ))
+            '        End If
+            '    Next
+            '    
+            '    If customFieldsToSend.Count > 0 Then
+            '        issue.Add("custom_fields", customFieldsToSend)
+            '        Logger.WriteLog("Preserving " & customFieldsToSend.Count & " custom fields with values from existing ticket")
+            '    End If
+            'End If
+
+            issueJson.Add("issue", issue)
+
+            ' Send PUT request
+            Dim apiUrl = baseUrl & "/issues/" & ticketData.TicketNo & ".json"
+
+            ' Log the JSON payload for debugging
+            Logger.WriteLog("API URL: " & apiUrl)
+            Logger.WriteLog("JSON Payload: " & issueJson.ToString())
+
+            Dim content As New StringContent(issueJson.ToString(), Encoding.UTF8, "application/json")
+            
+            ' API key header already set above
+            Logger.WriteLog("Using API key authentication")
+            
+            Dim response = Await httpClient.PutAsync(apiUrl, content)
+
+            Dim responseText = Await response.Content.ReadAsStringAsync()
+
+            If response.IsSuccessStatusCode Then
+                Logger.WriteLog("Successfully updated ticket #" & ticketData.TicketNo)
+                Return True
+            Else
+                Logger.WriteLog("Failed to update ticket. Status: " & response.StatusCode & ", Response: " & responseText)
+                Return False
+            End If
+
+        Catch ex As Exception
+            Logger.WriteLog("Error updating ticket: " & ex.Message)
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Maps status string to Redmine status ID
+    ''' </summary>
+    ''' <summary>
+    ''' Maps status string to Redmine status ID
+    ''' </summary>
+    Private Function GetStatusId(status As String) As Integer
+        ' Try to parse as integer first
+        Dim id As Integer
+        If Integer.TryParse(status, id) Then
+            Return id
+        End If
+
+        Select Case status
+            Case "TestRegistered"
+                Return 31
+            Case "ProductionRegistered"
+                Return 32
+            Case "TestVerified"
+                Return 33
+            Case "Close"
+                Return 30
+            Case "Checking"
+                Return 35
+            Case Else
+                Return 0 ' Unknown status
+        End Select
+    End Function
+
+    ''' <summary>
+    ''' Maps assignee string to Redmine user ID
+    ''' </summary>
+    Private Function GetAssignedToId(assign As String) As Integer
+        Select Case assign
+            Case "SRG"
+                Return 177
+            Case "GSupport"
+                Return 102
+            Case Else
+                Return 0 ' Unknown assignee
+        End Select
     End Function
 
     ''' <summary>
@@ -149,6 +458,8 @@ Public Class RedmineTicketCreator
                 Return 3
             Case "urgent", "immediate"
                 Return 4
+            Case "critical"
+                Return 5
             Case Else
                 Return 2 ' Default to medium
         End Select
@@ -158,55 +469,9 @@ Public Class RedmineTicketCreator
     ''' Builds description from ticket data
     ''' </summary>
     Private Function BuildDescription(ticketData As TicketXmlData) As String
-        Dim sb As New StringBuilder()
-
-        ' Add main description
         If Not String.IsNullOrEmpty(ticketData.Description) Then
-            sb.AppendLine(ticketData.Description)
-            sb.AppendLine()
+            Return ticketData.Description
         End If
-
-        ' Add additional details
-        sb.AppendLine("=== Ticket Details ===")
-
-        If Not String.IsNullOrEmpty(ticketData.Detail) Then
-            sb.AppendLine("Detail: " & ticketData.Detail)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.ChangtheSubject) Then
-            sb.AppendLine("Change Subject: " & ticketData.ChangtheSubject)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.ItemType) Then
-            sb.AppendLine("Item Type: " & ticketData.ItemType)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
-            sb.AppendLine("Folder No: " & ticketData.FolderNo)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.TestServer) Then
-            sb.AppendLine("Test Server: " & ticketData.TestServer)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.ProductionServer) Then
-            sb.AppendLine("Production Server: " & ticketData.ProductionServer)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.TeamsUrl) Then
-            sb.AppendLine()
-            sb.AppendLine("Teams URL: " & ticketData.TeamsUrl)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.RegistPerson) Then
-            sb.AppendLine()
-            sb.AppendLine("Registered by: " & ticketData.RegistPerson)
-        End If
-
-        If Not String.IsNullOrEmpty(ticketData.RegistDate) Then
-            sb.AppendLine("Registration Date: " & ticketData.RegistDate)
-        End If
-
-        Return sb.ToString()
+        Return ""
     End Function
 End Class

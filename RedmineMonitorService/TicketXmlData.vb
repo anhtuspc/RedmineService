@@ -2,6 +2,12 @@
 ''' Represents ticket data parsed from XML file
 ''' </summary>
 Public Class TicketXmlData
+    ' Update-specific fields
+    Public Property TicketNo As String
+    Public Property Status As String
+    Public Property Assign As String
+    
+    ' Create-specific fields
     Public Property UpdateStatus As String
     Public Property Subject As String
     Public Property Priority As String
@@ -25,6 +31,9 @@ Public Class TicketXmlData
     Public Property Description As String
 
     Public Sub New()
+        TicketNo = ""
+        Status = ""
+        Assign = ""
         UpdateStatus = ""
         Subject = ""
         Priority = "medium"

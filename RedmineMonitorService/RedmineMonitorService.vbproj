@@ -83,6 +83,7 @@
     <Compile Include="TicketXmlParser.vb" />
     <Compile Include="RedmineTicketCreator.vb" />
     <Compile Include="XmlFolderMonitor.vb" />
+    <Compile Include="EncryptionHelper.vb" />
     <Compile Include="Logger.vb" />
     <Compile Include="HtmlReportGenerator.vb" />
     <Compile Include="ProjectInstaller.vb">

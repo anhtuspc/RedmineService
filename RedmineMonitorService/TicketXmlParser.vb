@@ -23,6 +23,9 @@ Public Class TicketXmlParser
 
             ' Parse all fields
             ticketData.UpdateStatus = GetNodeValue(root, "UpdateStatus")
+            ticketData.TicketNo = GetNodeValue(root, "TicketNo")
+            ticketData.Status = GetNodeValue(root, "Status")
+            ticketData.Assign = GetNodeValue(root, "Assign")
             ticketData.Subject = GetNodeValue(root, "Subject")
             ticketData.Priority = GetNodeValue(root, "Priority")
             ticketData.ReceiptionDate = GetNodeValue(root, "ReceiptionDate")
@@ -68,14 +71,25 @@ Public Class TicketXmlParser
     ''' Validates that required fields are present
     ''' </summary>
     Public Shared Function ValidateTicketData(ticketData As TicketXmlData) As Boolean
-        If String.IsNullOrEmpty(ticketData.Subject) Then
-            Logger.WriteLog("Validation failed: Subject is required")
-            Return False
-        End If
-
         If String.IsNullOrEmpty(ticketData.UpdateStatus) Then
             Logger.WriteLog("Validation failed: UpdateStatus is required")
             Return False
+        End If
+
+        ' For New tickets, Subject is required
+        If ticketData.UpdateStatus.ToLower() = "new" Then
+            If String.IsNullOrEmpty(ticketData.Subject) Then
+                Logger.WriteLog("Validation failed: Subject is required for new tickets")
+                Return False
+            End If
+        End If
+
+        ' For Update operations, TicketNo is required
+        If ticketData.UpdateStatus.ToLower() = "update" Then
+            If String.IsNullOrEmpty(ticketData.TicketNo) Then
+                Logger.WriteLog("Validation failed: TicketNo is required for update operations")
+                Return False
+            End If
         End If
 
         Return True

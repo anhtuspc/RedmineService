@@ -20,8 +20,20 @@ Public Class RedmineClient
     Public Sub New()
         ' Read configuration
         baseUrl = ConfigurationManager.AppSettings("RedmineUrl")
-        username = ConfigurationManager.AppSettings("RedmineUsername")
-        password = ConfigurationManager.AppSettings("RedminePassword")
+        
+        ' Read and decrypt credentials
+        Dim encryptedUsername = ConfigurationManager.AppSettings("RedmineUsername")
+        Dim encryptedPassword = ConfigurationManager.AppSettings("RedminePassword")
+        
+        Try
+            username = EncryptionHelper.Decrypt(encryptedUsername)
+            password = EncryptionHelper.Decrypt(encryptedPassword)
+        Catch ex As Exception
+            ' If decryption fails, assume values are plain text (for backward compatibility)
+            username = encryptedUsername
+            password = encryptedPassword
+            Logger.WriteLog("Warning: Using plain text credentials. Consider encrypting them.")
+        End Try
 
         ' Setup HTTP client with cookie support
         cookieContainer = New CookieContainer()

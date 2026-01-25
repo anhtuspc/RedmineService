@@ -140,7 +140,7 @@ Public Class XmlFolderMonitor
 
             ' Check UpdateStatus
             If ticketData.UpdateStatus.ToLower() = "new" Then
-                ' Create ticket
+                ' Create new ticket
                 Dim ticketId = Await ticketCreator.CreateTicketAsync(ticketData)
 
                 If Not String.IsNullOrEmpty(ticketId) Then
@@ -150,8 +150,28 @@ Public Class XmlFolderMonitor
                     Logger.WriteLog("Failed to create ticket from file: " & filePath)
                     ' Keep file for retry
                 End If
+            ElseIf ticketData.UpdateStatus.ToLower() = "update" Then
+                ' Update existing ticket
+                If String.IsNullOrEmpty(ticketData.TicketNo) Then
+                    Logger.WriteLog("Update failed: TicketNo is required for update operation")
+                    MoveToBackup(filePath, ".error")
+                    SyncLock lockObject
+                        processingFiles.Remove(filePath)
+                    End SyncLock
+                    Return
+                End If
+
+                Dim success = Await ticketCreator.UpdateTicketAsync(ticketData)
+
+                If success Then
+                    Logger.WriteLog("Successfully updated ticket #" & ticketData.TicketNo & " from file: " & filePath)
+                    MoveToBackup(filePath, "")
+                Else
+                    Logger.WriteLog("Failed to update ticket from file: " & filePath)
+                    ' Keep file for retry
+                End If
             Else
-                Logger.WriteLog("UpdateStatus is not 'New', skipping: " & ticketData.UpdateStatus)
+                Logger.WriteLog("UpdateStatus is not 'New' or 'Update', skipping: " & ticketData.UpdateStatus)
                 MoveToBackup(filePath, ".skipped")
             End If
 
