@@ -14,7 +14,7 @@ Public Class RedmineMonitorService
 
     Public Sub New()
         MyBase.New()
-        Me.ServiceName = "RedmineMonitorService"
+        Me.ServiceName = "AR_Redmine"
         Me.CanStop = True
         Me.CanPauseAndContinue = False
         Me.AutoLog = True

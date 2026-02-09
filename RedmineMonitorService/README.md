@@ -183,10 +183,10 @@ cd C:\Windows\Microsoft.NET\Framework64\v4.0.30319
 
 ```powershell
 # Create service (run as Administrator)
-sc create RedmineMonitorService binPath= "C:\path\to\RedmineMonitorService\bin\Release\RedmineMonitorService.exe" start= auto
+sc create AR_Redmine binPath= "C:\path\to\RedmineMonitorService\bin\Release\RedmineMonitorService.exe" start= auto
 
 # Set description
-sc description RedmineMonitorService "Monitors Redmine tickets and generates HTML reports"
+sc description AR_Redmine "AR_Redmine - Monitors Redmine tickets and generates HTML reports"
 ```
 
 ## Starting the Service
@@ -194,20 +194,20 @@ sc description RedmineMonitorService "Monitors Redmine tickets and generates HTM
 ### Using Services Console
 
 1. Press `Win+R`, type `services.msc`, press Enter
-2. Find "Redmine Monitor Service"
+2. Find "AR_Redmine"
 3. Right-click > Start
 
 ### Using Command Line
 
 ```powershell
 # Start service
-net start RedmineMonitorService
+net start AR_Redmine
 
 # Stop service
-net stop RedmineMonitorService
+net stop AR_Redmine
 
 # Check service status
-sc query RedmineMonitorService
+sc query AR_Redmine
 ```
 
 ## Debugging the Service
@@ -469,10 +469,10 @@ cd C:\Windows\Microsoft.NET\Framework64\v4.0.30319
 
 ```powershell
 # Stop service first
-net stop RedmineMonitorService
+net stop AR_Redmine
 
 # Delete service
-sc delete RedmineMonitorService
+sc delete AR_Redmine
 ```
 
 ## Troubleshooting
