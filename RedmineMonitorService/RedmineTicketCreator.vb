@@ -256,7 +256,8 @@ Public Class RedmineTicketCreator
                     ' Copy to Master Folder (local backup)
                     Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder")
                     If Not String.IsNullOrEmpty(masterFolderBase) Then
-                        Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData)
+                        ' Use flat folder structure for Master Folder (useDateStructure = False)
+                        Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData, False)
                         CopyFilesToUpdateFolder(sourceFolderPath, masterFolder)
                     End If
                 End If
@@ -274,10 +275,11 @@ Public Class RedmineTicketCreator
     End Function
 
     ''' <summary>
-    ''' Makes data folder path based on current date and ticket info
-    ''' Format: FolderPath\yyyy\yyyyMM\yyyyMMdd\NoXXXXX[Subject] [Qty]Qty
+    ''' Makes data folder path based on ticket info
+    ''' Format with date: FolderPath\yyyy\yyyyMM\yyyyMMdd\NoXXXXX[Subject] [Qty]Qty
+    ''' Format without date: FolderPath\NoXXXXX[Subject] [Qty]Qty
     ''' </summary>
-    Private Function MakeDataFolder(folderPath As String, ticketId As String, ticketData As TicketXmlData) As String
+    Private Function MakeDataFolder(folderPath As String, ticketId As String, ticketData As TicketXmlData, Optional useDateStructure As Boolean = True) As String
         Dim result As String = ""
         Dim now As DateTime = DateTime.Now
         
@@ -291,8 +293,13 @@ Public Class RedmineTicketCreator
             End If
         End If
         
-        result = folderPath & now.ToString("yyyy") & "\" & now.ToString("yyyyMM") & "\" & now.ToString("yyyyMMdd") & "\" &
-                 "No" & ticketId & subjectWithoutPrefix & " " & ticketData.Qty & "Qty"
+        Dim ticketFolderName As String = "No" & ticketId & subjectWithoutPrefix & " " & ticketData.Qty & "Qty"
+        
+        If useDateStructure Then
+            result = Path.Combine(folderPath, now.ToString("yyyy"), now.ToString("yyyyMM"), now.ToString("yyyyMMdd"), ticketFolderName)
+        Else
+            result = Path.Combine(folderPath, ticketFolderName)
+        End If
         
         Return result
     End Function

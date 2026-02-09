@@ -10,9 +10,18 @@ Public Class HtmlReportGenerator
     ''' <summary>
     ''' Generates an HTML report and saves it to output.html
     ''' </summary>
-    Public Shared Sub GenerateReport(tickets As List(Of TicketInfo))
+    Public Shared Sub GenerateReport(tickets As List(Of TicketInfo), outputFolder As String)
         Try
-            Dim outputPath As String = Path.Combine(GetExecutingDirectory(), "output.html")
+            If String.IsNullOrEmpty(outputFolder) Then
+                outputFolder = GetExecutingDirectory()
+            End If
+            
+            ' Create directory if it doesn't exist
+            If Not Directory.Exists(outputFolder) Then
+                Directory.CreateDirectory(outputFolder)
+            End If
+            
+            Dim outputPath As String = Path.Combine(outputFolder, "Output.html")
             Dim html As New StringBuilder()
 
             ' HTML header with styling

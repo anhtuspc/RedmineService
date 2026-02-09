@@ -128,7 +128,11 @@ Public Class RedmineMonitorService
                 Next
 
                 ' Generate HTML report
-                HtmlReportGenerator.GenerateReport(tickets)
+                Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder")
+                If String.IsNullOrEmpty(backupFolder) Then
+                    backupFolder = AppDomain.CurrentDomain.BaseDirectory
+                End If
+                HtmlReportGenerator.GenerateReport(tickets, backupFolder)
             Else
                 Logger.WriteLog("No tickets retrieved")
             End If
