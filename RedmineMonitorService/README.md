@@ -95,6 +95,7 @@ Edit `App.config` to configure the service:
 | `TimerIntervalMinutes` | Monitoring interval in minutes | Yes (default: 1) |
 | `XmlFolderPath` | Folder to monitor for XML files | Yes (for XML automation) |
 | `BackupFolderPath` | Folder to store processed XML files | Yes (for XML automation) |
+| `MasterFolder` | Local backup folder for data files | Yes (for dual backup) |
 
 ### Getting Your API Key
 

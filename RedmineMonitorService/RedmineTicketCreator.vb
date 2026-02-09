@@ -245,11 +245,20 @@ Public Class RedmineTicketCreator
             If response.IsSuccessStatusCode Then
                 Logger.WriteLog("Successfully updated ticket #" & ticketId & " with Teams URL and Update Folder")
                 
-                ' Copy files from FolderNo to Update Folder
+                ' Copy files from FolderNo to both Update Folder and Master Folder
                 If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
                     Dim xmlDirectory As String = Path.GetDirectoryName(xmlFilePath)
                     Dim sourceFolderPath As String = Path.Combine(xmlDirectory, ticketData.FolderNo)
+                    
+                    ' Copy to Update Folder (network share)
                     CopyFilesToUpdateFolder(sourceFolderPath, updateFolder)
+                    
+                    ' Copy to Master Folder (local backup)
+                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder")
+                    If Not String.IsNullOrEmpty(masterFolderBase) Then
+                        Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData)
+                        CopyFilesToUpdateFolder(sourceFolderPath, masterFolder)
+                    End If
                 End If
                 
                 Return True
