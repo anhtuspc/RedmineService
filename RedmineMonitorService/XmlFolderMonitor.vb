@@ -141,11 +141,11 @@ Public Class XmlFolderMonitor
             ' Check UpdateStatus
             If ticketData.UpdateStatus.ToLower() = "new" Then
                 ' Create new ticket
-                Dim ticketId = Await ticketCreator.CreateTicketAsync(ticketData)
+                Dim ticketId = Await ticketCreator.CreateTicketAsync(ticketData, filePath)
 
                 If Not String.IsNullOrEmpty(ticketId) Then
                     Logger.WriteLog("Successfully created ticket #" & ticketId & " from file: " & filePath)
-                    MoveToBackup(filePath, "")
+                    BackupXmlAndFolder(filePath, ticketId, ticketData)
                 Else
                     Logger.WriteLog("Failed to create ticket from file: " & filePath)
                     ' Keep file for retry
@@ -165,7 +165,7 @@ Public Class XmlFolderMonitor
 
                 If success Then
                     Logger.WriteLog("Successfully updated ticket #" & ticketData.TicketNo & " from file: " & filePath)
-                    MoveToBackup(filePath, "")
+                    BackupXmlAndFolder(filePath, ticketData.TicketNo, ticketData)
                 Else
                     Logger.WriteLog("Failed to update ticket from file: " & filePath)
                     ' Keep file for retry
@@ -203,7 +203,57 @@ Public Class XmlFolderMonitor
     End Function
 
     ''' <summary>
-    ''' Moves file to backup folder
+    ''' Backs up XML file and FolderNo folder to backup location with structure: YYYYMM/YYYYMMDD/TicketNo
+    ''' </summary>
+    Private Sub BackupXmlAndFolder(xmlFilePath As String, ticketId As String, ticketData As TicketXmlData)
+        Try
+            Dim now As DateTime = DateTime.Now
+            Dim yyyymm As String = now.ToString("yyyyMM")
+            Dim yyyymmdd As String = now.ToString("yyyyMMdd")
+            
+            ' Create backup path: BackupFolder\YYYYMM\YYYYMMDD\TicketNo
+            Dim backupPath As String = Path.Combine(backupFolder, yyyymm, yyyymmdd, ticketId)
+            
+            ' Create backup directory structure
+            If Not Directory.Exists(backupPath) Then
+                Directory.CreateDirectory(backupPath)
+                Logger.WriteLog("Created backup directory: " & backupPath)
+            End If
+            
+            ' 1. Move XML file to backup
+            Dim xmlFileName As String = Path.GetFileName(xmlFilePath)
+            Dim xmlDestPath As String = Path.Combine(backupPath, xmlFileName)
+            
+            If File.Exists(xmlFilePath) Then
+                File.Move(xmlFilePath, xmlDestPath)
+                Logger.WriteLog("Moved XML file to backup: " & xmlDestPath)
+            End If
+            
+            ' 2. Move FolderNo folder to backup (if exists)
+            If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
+                Dim xmlDirectory As String = Path.GetDirectoryName(xmlFilePath)
+                Dim sourceFolderPath As String = Path.Combine(xmlDirectory, ticketData.FolderNo)
+                
+                If Directory.Exists(sourceFolderPath) Then
+                    Dim destFolderPath As String = Path.Combine(backupPath, ticketData.FolderNo)
+                    
+                    ' Move entire folder
+                    Directory.Move(sourceFolderPath, destFolderPath)
+                    Logger.WriteLog("Moved folder '" & ticketData.FolderNo & "' to backup: " & destFolderPath)
+                Else
+                    Logger.WriteLog("FolderNo '" & ticketData.FolderNo & "' does not exist at: " & sourceFolderPath)
+                End If
+            End If
+            
+            Logger.WriteLog("Backup completed for ticket #" & ticketId)
+            
+        Catch ex As Exception
+            Logger.WriteLog("Error backing up XML and folder: " & ex.Message)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Moves file to backup folder (for error cases)
     ''' </summary>
     Private Sub MoveToBackup(filePath As String, suffix As String)
         Try

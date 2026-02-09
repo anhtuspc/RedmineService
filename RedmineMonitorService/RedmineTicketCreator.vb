@@ -2,6 +2,7 @@ Imports System.Net.Http
 Imports System.Text
 Imports System.Threading.Tasks
 Imports System.Configuration
+Imports System.IO
 Imports Newtonsoft.Json.Linq
 
 ''' <summary>
@@ -24,7 +25,7 @@ Public Class RedmineTicketCreator
     ''' <summary>
     ''' Creates a new Redmine ticket from XML data
     ''' </summary>
-    Public Async Function CreateTicketAsync(ticketData As TicketXmlData) As Task(Of String)
+    Public Async Function CreateTicketAsync(ticketData As TicketXmlData, xmlFilePath As String) As Task(Of String)
         Try
             ' Bypass SSL certificate validation
             System.Net.ServicePointManager.ServerCertificateValidationCallback = Function(sender, certificate, chain, sslPolicyErrors) True
@@ -179,7 +180,7 @@ Public Class RedmineTicketCreator
                 Logger.WriteLog("Successfully created ticket #" & ticketId)
                 
                 ' Update ticket with Teams URL and Update Folder
-                Await UpdateTicketAfterCreation(ticketId, ticketData)
+                Await UpdateTicketAfterCreation(ticketId, ticketData, xmlFilePath)
                 
                 Return ticketId
             Else
@@ -196,7 +197,7 @@ Public Class RedmineTicketCreator
     ''' <summary>
     ''' Updates ticket after creation with Teams URL (notes) and Update Folder (cf_124)
     ''' </summary>
-    Private Async Function UpdateTicketAfterCreation(ticketId As String, ticketData As TicketXmlData) As Task(Of Boolean)
+    Private Async Function UpdateTicketAfterCreation(ticketId As String, ticketData As TicketXmlData, xmlFilePath As String) As Task(Of Boolean)
         Try
             Logger.WriteLog("Updating ticket #" & ticketId & " with Teams URL and Update Folder")
 
@@ -243,6 +244,14 @@ Public Class RedmineTicketCreator
 
             If response.IsSuccessStatusCode Then
                 Logger.WriteLog("Successfully updated ticket #" & ticketId & " with Teams URL and Update Folder")
+                
+                ' Copy files from FolderNo to Update Folder
+                If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
+                    Dim xmlDirectory As String = Path.GetDirectoryName(xmlFilePath)
+                    Dim sourceFolderPath As String = Path.Combine(xmlDirectory, ticketData.FolderNo)
+                    CopyFilesToUpdateFolder(sourceFolderPath, updateFolder)
+                End If
+                
                 Return True
             Else
                 Logger.WriteLog("Failed to update ticket after creation. Status: " & response.StatusCode & ", Response: " & responseText)
@@ -278,6 +287,65 @@ Public Class RedmineTicketCreator
         
         Return result
     End Function
+
+    ''' <summary>
+    ''' Copies all files from source folder (FolderNo) to destination folder (Update Folder)
+    ''' </summary>
+    Private Sub CopyFilesToUpdateFolder(sourceFolderPath As String, destinationFolderPath As String)
+        Try
+            Logger.WriteLog("Starting file backup from: " & sourceFolderPath)
+            Logger.WriteLog("Destination folder: " & destinationFolderPath)
+
+            ' Check if source folder exists
+            If Not Directory.Exists(sourceFolderPath) Then
+                Logger.WriteLog("Source folder does not exist: " & sourceFolderPath)
+                Return
+            End If
+
+            ' Create destination folder if it doesn't exist
+            If Not Directory.Exists(destinationFolderPath) Then
+                Directory.CreateDirectory(destinationFolderPath)
+                Logger.WriteLog("Created destination folder: " & destinationFolderPath)
+            End If
+
+            ' Get all files from source folder
+            Dim files = Directory.GetFiles(sourceFolderPath)
+            
+            If files.Length = 0 Then
+                Logger.WriteLog("No files found in source folder")
+                Return
+            End If
+
+            Logger.WriteLog("Found " & files.Length & " file(s) to copy")
+
+            ' Copy each file
+            Dim successCount As Integer = 0
+            Dim failCount As Integer = 0
+
+            For Each sourceFile In files
+                Try
+                    Dim fileName = Path.GetFileName(sourceFile)
+                    Dim destFile = Path.Combine(destinationFolderPath, fileName)
+
+                    ' Copy file (overwrite if exists)
+                    File.Copy(sourceFile, destFile, True)
+                    
+                    Logger.WriteLog("Copied file: " & fileName)
+                    successCount += 1
+
+                Catch fileEx As Exception
+                    Logger.WriteLog("Failed to copy file: " & Path.GetFileName(sourceFile) & " - " & fileEx.Message)
+                    failCount += 1
+                End Try
+            Next
+
+            Logger.WriteLog("File backup completed: " & successCount & " succeeded, " & failCount & " failed")
+
+        Catch ex As Exception
+            Logger.WriteLog("Error copying files to update folder: " & ex.Message)
+        End Try
+    End Sub
+
 
     ''' <summary>
     ''' Updates an existing Redmine ticket (status and assignee)
