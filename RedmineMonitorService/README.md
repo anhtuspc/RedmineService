@@ -75,10 +75,13 @@ Edit `App.config` to configure the service:
   <!-- Monitoring Settings -->
   <add key="TimerIntervalMinutes" value="1" />
   
-  <!-- XML Automation Folders (NEW) -->
-  <add key="XmlFolderPath" value="C:\Users\Nguyen\OneDrive - MISUMI Group Inc\bk\test" />
-  <add key="BackupFolderPath" value="C:\Users\Nguyen\OneDrive - MISUMI Group Inc\bk\test\bk" />
-</appSettings>
+    <!-- Auto-Create Ticket Configuration -->
+    <add key="MonitorFolder" value="D:\SPC1-3_gsupport\Temp\OneDrive - 株式会社ミスミグループ本社\bk\CreateRedmineTicket" />
+    <add key="BackupFolder" value="D:\SPC1-3_gsupport\Temp\OneDrive - 株式会社ミスミグループ本社\bk\CreateRedmineTicket\Backup" />
+    <add key="RedmineProjectId" value="29" />
+    <add key="FolderPath" value="\\172.27.0.223\情報システム\マスタ更新履歴\" />
+    <add key="MasterFolder" value="D:\SPC1-3_gsupport\Temp\OneDrive - 株式会社ミスミグループ本社\Master" />
+  </appSettings>
 ```
 
 ### Configuration Options
