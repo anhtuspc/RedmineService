@@ -23,9 +23,9 @@ Public Class ProjectInstaller
 
         ' Service Installer
         serviceInstaller = New ServiceInstaller()
-        serviceInstaller.ServiceName = "AR_Redmine"
-        serviceInstaller.DisplayName = "AR_Redmine"
-        serviceInstaller.Description = "AR_Redmine - Monitors Redmine tickets and generates HTML reports"
+        serviceInstaller.ServiceName = "WAR_Redmine"
+        serviceInstaller.DisplayName = "WAR_Redmine"
+        serviceInstaller.Description = "WAR_Redmine - Monitors Redmine tickets and generates HTML reports"
         serviceInstaller.StartType = ServiceStartMode.Automatic
 
         ' Add installers to collection

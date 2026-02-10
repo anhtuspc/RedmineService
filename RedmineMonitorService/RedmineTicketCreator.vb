@@ -254,7 +254,11 @@ Public Class RedmineTicketCreator
                     CopyFilesToUpdateFolder(sourceFolderPath, updateFolder)
                     
                     ' Copy to Master Folder (local backup)
-                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder")
+#If DEBUG Then
+                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Debug")
+#Else
+                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Release")
+#End If
                     If Not String.IsNullOrEmpty(masterFolderBase) Then
                         ' Use flat folder structure for Master Folder (useDateStructure = False)
                         Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData, False)
@@ -474,6 +478,30 @@ Public Class RedmineTicketCreator
 
             If response.IsSuccessStatusCode Then
                 Logger.WriteLog("Successfully updated ticket #" & ticketData.TicketNo)
+
+                ' Check if status is "Close" to log time
+                If ticketData.Status = "Close" Then
+                    Dim estimateTimeStr As String = ""
+                    ' Get estimated hours from existing ticket
+                    If existingTicket("issue")("estimated_hours") IsNot Nothing Then
+                        estimateTimeStr = existingTicket("issue")("estimated_hours").ToString()
+                    End If
+
+                    If Not String.IsNullOrEmpty(estimateTimeStr) Then
+                        Logger.WriteLog("Closing ticket with Estimated Hours: " & estimateTimeStr)
+                        
+                        ' Calculate time for Test (Activity 26)
+                        Dim timeTest As Double = GetTime(estimateTimeStr, "Test")
+                        Await LogTimeEntryAsync(ticketData.TicketNo, timeTest, 26, "Registration（Test）")
+
+                        ' Calculate time for Production (Activity 27)
+                        Dim timeProd As Double = GetTime(estimateTimeStr, "Production") 
+                        Await LogTimeEntryAsync(ticketData.TicketNo, timeProd, 27, "Registration（Production）")
+                    Else
+                        Logger.WriteLog("Estimated hours not found, skipping time entry.")
+                    End If
+                End If
+
                 Return True
             Else
                 Logger.WriteLog("Failed to update ticket. Status: " & response.StatusCode & ", Response: " & responseText)
@@ -487,8 +515,88 @@ Public Class RedmineTicketCreator
     End Function
 
     ''' <summary>
-    ''' Maps status string to Redmine status ID
+    ''' Logs time entry for a ticket
     ''' </summary>
+    Private Async Function LogTimeEntryAsync(ticketId As String, hours As Double, activityId As Integer, comments As String) As Task
+        Try
+            Logger.WriteLog("Logging " & hours & " hours for ticket #" & ticketId & " (Activity: " & activityId & ")")
+            
+            Dim timeEntryJson As New JObject()
+            Dim timeEntry As New JObject()
+            
+            timeEntry.Add("issue_id", ticketId)
+            timeEntry.Add("hours", hours)
+            timeEntry.Add("activity_id", activityId)
+            timeEntry.Add("spent_on", DateTime.Now.ToString("yyyy-MM-dd"))
+            timeEntry.Add("comments", comments)
+            
+            timeEntryJson.Add("time_entry", timeEntry)
+            
+            Dim baseUrl = redmineClient.GetBaseUrl()
+            Dim apiUrl = baseUrl & "/time_entries.json"
+            
+            Dim content As New StringContent(timeEntryJson.ToString(), Encoding.UTF8, "application/json")
+            
+            ' Ensure API key is set
+             Dim apiKey = ConfigurationManager.AppSettings("RedmineApiKey")
+            If Not String.IsNullOrEmpty(apiKey) Then
+                httpClient.DefaultRequestHeaders.Remove("X-Redmine-API-Key")
+                httpClient.DefaultRequestHeaders.Add("X-Redmine-API-Key", apiKey)
+            End If
+
+            Dim response = Await httpClient.PostAsync(apiUrl, content)
+            Dim responseText = Await response.Content.ReadAsStringAsync()
+            
+            If response.IsSuccessStatusCode Then
+                Logger.WriteLog("Successfully logged time entry.")
+            Else
+                Logger.WriteLog("Failed to log time entry. Status: " & response.StatusCode & ", Response: " & responseText)
+            End If
+            
+        Catch ex As Exception
+             Logger.WriteLog("Error logging time entry: " & ex.Message)
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Calculates time split based on server name (Test/Production)
+    ''' Logic from legacy app
+    ''' </summary>
+    Private Function GetTime(ByVal EstimateTime As String, ByVal ServerName As String) As Double
+        Dim result As Double = 0.25
+
+        Dim total As Double = GetEstimateTime(EstimateTime)
+
+        If total <= 0 Then Return 0 ' Handle invalid estimate
+
+        If total = 0.5 Then
+             If ServerName = "Test" Then
+                Return 0.25
+             Else
+                Return 0.25
+             End If
+        Else
+            ' Calculate 75% for Test, rounded to 0.25
+            While result < total * 0.75
+                result = result + 0.25
+            End While
+
+            If ServerName = "Test" Then
+                Return result
+            Else
+                Return total - result
+            End If
+        End If
+    End Function
+
+    Private Function GetEstimateTime(ByVal EstimateTime As String) As Double
+        Dim d As Double
+        If Double.TryParse(EstimateTime, d) Then
+            Return d
+        End If
+        Return 0
+    End Function
+
     ''' <summary>
     ''' Maps status string to Redmine status ID
     ''' </summary>

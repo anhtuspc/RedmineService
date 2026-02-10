@@ -14,7 +14,7 @@ Public Class RedmineMonitorService
 
     Public Sub New()
         MyBase.New()
-        Me.ServiceName = "AR_Redmine"
+        Me.ServiceName = "WAR_Redmine"
         Me.CanStop = True
         Me.CanPauseAndContinue = False
         Me.AutoLog = True
@@ -25,7 +25,19 @@ Public Class RedmineMonitorService
     ''' </summary>
     Protected Overrides Sub OnStart(args As String())
         Try
+            ' Check arguments for logging flags
+            If args IsNot Nothing AndAlso args.Length > 0 Then
+                For Each arg In args
+                    If arg.Equals("/log_off", StringComparison.OrdinalIgnoreCase) Then
+                        Logger.LoggingEnabled = False
+                    ElseIf arg.Equals("/log_on", StringComparison.OrdinalIgnoreCase) Then
+                        Logger.LoggingEnabled = True
+                    End If
+                Next
+            End If
+
             Logger.WriteLog("=== Redmine Monitor Service Starting ===")
+            Logger.WriteLog("Logging is: " & If(Logger.LoggingEnabled, "ENABLED", "DISABLED"))
 
             ' Initialize Redmine client
             redmineClient = New RedmineClient()
@@ -46,8 +58,14 @@ Public Class RedmineMonitorService
             Logger.WriteLog("Service started successfully. Timer interval: " & intervalMinutes & " minute(s)")
 
             ' Initialize XML folder monitor
-            Dim monitorFolder = ConfigurationManager.AppSettings("MonitorFolder")
-            Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder")
+            ' Initialize XML folder monitor
+#If DEBUG Then
+            Dim monitorFolder = ConfigurationManager.AppSettings("MonitorFolder_Debug")
+            Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder_Debug")
+#Else
+            Dim monitorFolder = ConfigurationManager.AppSettings("MonitorFolder_Release")
+            Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder_Release")
+#End If
             
             If Not String.IsNullOrEmpty(monitorFolder) AndAlso Not String.IsNullOrEmpty(backupFolder) Then
                 xmlFolderMonitor = New XmlFolderMonitor(redmineClient, monitorFolder, backupFolder)
@@ -128,7 +146,12 @@ Public Class RedmineMonitorService
                 Next
 
                 ' Generate HTML report
-                Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder")
+                ' Generate HTML report
+#If DEBUG Then
+                Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder_Debug")
+#Else
+                Dim backupFolder = ConfigurationManager.AppSettings("BackupFolder_Release")
+#End If
                 If String.IsNullOrEmpty(backupFolder) Then
                     backupFolder = AppDomain.CurrentDomain.BaseDirectory
                 End If

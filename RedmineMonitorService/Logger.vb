@@ -7,10 +7,14 @@ Imports System.Reflection
 Public Class Logger
     Private Shared ReadOnly lockObject As New Object()
 
+    Public Shared LoggingEnabled As Boolean = True
+
     ''' <summary>
     ''' Writes a log message with timestamp to log.txt
     ''' </summary>
     Public Shared Sub WriteLog(message As String)
+        If Not LoggingEnabled Then Return
+
         Try
             SyncLock lockObject
                 Dim logPath As String = Path.Combine(GetExecutingDirectory(), "log.txt")
