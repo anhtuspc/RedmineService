@@ -11,6 +11,7 @@ Public Class TicketInfo
     Public Property Priority As String
     Public Property Subject As String
     Public Property Qty As String
+    Public Property Time As String
     Public Property Updated As String
 
     Public Sub New()
@@ -23,6 +24,7 @@ Public Class TicketInfo
         Priority = ""
         Subject = ""
         Qty = ""
+        Time = ""
         Updated = ""
     End Sub
 End Class

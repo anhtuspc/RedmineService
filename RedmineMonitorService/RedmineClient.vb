@@ -215,6 +215,11 @@ Public Class RedmineClient
                         ticket.ReceptionDate = cellContent
                     End If
 
+                    ' Extract Time - class cf_147
+                    If cellHtml.Contains("cf_147") Then
+                        ticket.Time = cellContent
+                    End If
+
                     ' Extract Email Title - class cf_141 string
                     If cellHtml.Contains("cf_141") AndAlso cellHtml.Contains("string") Then
                         ticket.EmailTitle = cellContent
