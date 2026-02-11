@@ -45,6 +45,9 @@ Public Class TicketXmlParser
             ticketData.TestServer = GetNodeValue(root, "TestServer")
             ticketData.ProductionServer = GetNodeValue(root, "ProductionServer")
             ticketData.TeamsUrl = GetNodeValue(root, "TeamsUrl")
+            If String.IsNullOrEmpty(ticketData.TeamsUrl) Then
+                ticketData.TeamsUrl = GetNodeValue(root, "TeamUrl")
+            End If
             ticketData.Description = GetNodeValue(root, "Description")
 
             Logger.WriteLog("Successfully parsed XML file: " & filePath)
