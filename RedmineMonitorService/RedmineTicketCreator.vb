@@ -199,19 +199,13 @@ Public Class RedmineTicketCreator
     ''' </summary>
     Private Async Function UpdateTicketAfterCreation(ticketId As String, ticketData As TicketXmlData, xmlFilePath As String) As Task(Of Boolean)
         Try
-            Logger.WriteLog("Updating ticket #" & ticketId & " with Teams URL and Update Folder")
+            Logger.WriteLog("Updating ticket #" & ticketId & " with Update Folder and Notes")
 
             ' Build JSON payload for update
             Dim issueJson As New JObject()
             Dim issue As New JObject()
 
-            ' Add Teams URL to notes (comment)
-            If Not String.IsNullOrEmpty(ticketData.TeamsUrl) Then
-                issue.Add("notes", ticketData.TeamsUrl)
-                Logger.WriteLog("Adding Teams URL to notes")
-            End If
-
-            ' Build Update Folder path
+            ' --- 1. Prepare Update Folder Path ---
             Dim folderPath = ConfigurationManager.AppSettings("FolderPath")
             If String.IsNullOrEmpty(folderPath) Then
                 folderPath = "\\172.27.0.223\情報システム\マスタ更新履歴\"
@@ -226,51 +220,56 @@ Public Class RedmineTicketCreator
             
             Logger.WriteLog("Setting Update Folder: " & updateFolder)
 
+            ' --- 2. Prepare Teams URL (Note) ---
+            If Not String.IsNullOrEmpty(ticketData.TeamsUrl) Then
+                issue.Add("notes", ticketData.TeamsUrl)
+                Logger.WriteLog("Adding Teams URL to notes: " & ticketData.TeamsUrl)
+            End If
+
             issueJson.Add("issue", issue)
 
-            ' Send PUT request
+            ' --- 3. Send PUT Request (Single Call) ---
             Dim baseUrl = redmineClient.GetBaseUrl()
             Dim apiUrl = baseUrl & "/issues/" & ticketId & ".json"
-
-            Logger.WriteLog("Update API URL: " & apiUrl)
-            Logger.WriteLog("Update JSON Payload: " & issueJson.ToString())
+            
+            ' Logger.WriteLog("Update JSON Payload: " & issueJson.ToString())
 
             Dim content As New StringContent(issueJson.ToString(), Encoding.UTF8, "application/json")
             
             ' API key header already set in CreateTicketAsync
             Dim response = Await httpClient.PutAsync(apiUrl, content)
-
             Dim responseText = Await response.Content.ReadAsStringAsync()
 
-            If response.IsSuccessStatusCode Then
-                Logger.WriteLog("Successfully updated ticket #" & ticketId & " with Teams URL and Update Folder")
-                
-                ' Copy files from FolderNo to both Update Folder and Master Folder
-                If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
-                    Dim xmlDirectory As String = Path.GetDirectoryName(xmlFilePath)
-                    Dim sourceFolderPath As String = Path.Combine(xmlDirectory, ticketData.FolderNo)
-                    
-                    ' Copy to Update Folder (network share)
-                    CopyFilesToUpdateFolder(sourceFolderPath, updateFolder)
-                    
-                    ' Copy to Master Folder (local backup)
-#If DEBUG Then
-                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Debug")
-#Else
-                    Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Release")
-#End If
-                    If Not String.IsNullOrEmpty(masterFolderBase) Then
-                        ' Use flat folder structure for Master Folder (useDateStructure = False)
-                        Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData, False)
-                        CopyFilesToUpdateFolder(sourceFolderPath, masterFolder)
-                    End If
-                End If
-                
-                Return True
-            Else
-                Logger.WriteLog("Failed to update ticket after creation. Status: " & response.StatusCode & ", Response: " & responseText)
+            If Not response.IsSuccessStatusCode Then
+                Logger.WriteLog("Failed to update ticket. Status: " & response.StatusCode & ", Response: " & responseText)
                 Return False
             End If
+            
+            Logger.WriteLog("Successfully updated ticket #" & ticketId)
+
+            ' --- 4. Copy Files ---
+            ' Copy files from FolderNo to both Update Folder and Master Folder
+            If Not String.IsNullOrEmpty(ticketData.FolderNo) Then
+                Dim xmlDirectory As String = Path.GetDirectoryName(xmlFilePath)
+                Dim sourceFolderPath As String = Path.Combine(xmlDirectory, ticketData.FolderNo)
+                
+                ' Copy to Update Folder (network share)
+                CopyFilesToUpdateFolder(sourceFolderPath, updateFolder)
+                
+                ' Copy to Master Folder (local backup)
+#If DEBUG Then
+                Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Debug")
+#Else
+                Dim masterFolderBase = ConfigurationManager.AppSettings("MasterFolder_Release")
+#End If
+                If Not String.IsNullOrEmpty(masterFolderBase) Then
+                    ' Use flat folder structure for Master Folder (useDateStructure = False)
+                    Dim masterFolder = MakeDataFolder(masterFolderBase, ticketId, ticketData, False)
+                    CopyFilesToUpdateFolder(sourceFolderPath, masterFolder)
+                End If
+            End If
+
+            Return True
 
         Catch ex As Exception
             Logger.WriteLog("Error updating ticket after creation: " & ex.Message)
